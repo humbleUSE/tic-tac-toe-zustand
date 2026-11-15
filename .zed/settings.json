@@ -1,0 +1,21 @@
+{
+  "lsp": {
+    "vtsls": {
+      "settings": {
+        "javascript": {
+          "updateImportsOnFileMove": { "enabled": "always" }
+        },
+        "typescript": {
+          "updateImportsOnFileMove": { "enabled": "always" },
+          "disableAutomaticTypeAcquisition": true,
+          "preferences": { "includePackageJsonAutoImports": "off" },
+          // "preferences": { "includePackageJsonAutoImports": "auto" },
+          "tsserver": {
+            "useSyntaxServer": "never",
+            "maxTsServerMemory": 768
+          }
+        }
+      }
+    }
+  }
+}
