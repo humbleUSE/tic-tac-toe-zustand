@@ -8,11 +8,6 @@ const __dirname = import.meta.dirname;
 
 // https://vite.dev/config/
 export default defineConfig({
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
   plugins: [
     // Click a DOM element to jump to its source location in the IDE.
     // - hotKeys: ["ctrlKey"] uses Ctrl as the trigger (instead of Shift + Alt)
@@ -25,4 +20,9 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] }),
   ],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
 });
