@@ -1,34 +1,34 @@
-import type { Player, Squares, SquareValue } from "@/types";
+import type { Player, GameBoard, SquareValue, History } from "@/types";
 import { create } from "zustand";
 import { combine } from "zustand/middleware";
 
 export type GameStoreState = GameState & GameAction;
 interface GameState {
-  squares: Squares;
+  history: History;
   xIsNext: boolean;
 }
 interface GameAction {
-  setSquares: (s: Squares | ((s: Squares) => Squares)) => void;
+  setHistory: (s: History | ((s: History) => History)) => void;
   setXIsNext: (b: boolean | ((b: boolean) => boolean)) => void;
 }
-export const useGameStore = create<GameStoreState>(
+export const useGameStore = create(
   combine(
     {
       // Initial state
-      squares: Array<SquareValue>(9).fill(null),
+      history: [Array<SquareValue>(9).fill(null)] as History,
       xIsNext: true,
     },
     // Actions
     (set) => ({
       // Update the squares on the board
-      setSquares: (
-        nextSquares: Squares | ((prevState: Squares) => Squares),
+      setHistory: (
+        nextHistory: History | ((prevState: History) => History),
       ) => {
         set((state) => ({
-          squares:
-            typeof nextSquares === "function"
-              ? nextSquares(state.squares)
-              : nextSquares,
+          history:
+            typeof nextHistory === "function"
+              ? nextHistory(state.history)
+              : nextHistory,
         }));
       },
       // Toggle xIsNext
@@ -45,7 +45,8 @@ export const useGameStore = create<GameStoreState>(
 );
 
 // calculate winner
-export function calculateWinner(squares: Squares) {
+export function calculateWinner(squares: GameBoard) {
+  console.log(squares);
   const lines = [
     [0, 1, 2], // row
     [3, 4, 5], // row
@@ -66,7 +67,7 @@ export function calculateWinner(squares: Squares) {
   return null;
 }
 
-function calculateTurns(squares: Squares) {
+function calculateTurns(squares: GameBoard) {
   return squares.every(Boolean);
 }
 
@@ -82,10 +83,10 @@ export function calculateStatus(
 }
 
 export function selectGameStatus(state: GameStoreState) {
-  const squares = state.squares;
+  const currentSquares = state.history[state.history.length - 1];
   const xIsNext = state.xIsNext;
-  const winner = calculateWinner(squares);
-  const isDraw = calculateTurns(squares);
+  const winner = calculateWinner(currentSquares);
+  const isDraw = calculateTurns(currentSquares);
   const player: SquareValue = xIsNext ? "X" : "O";
 
   const status = calculateStatus(winner, isDraw, player);
