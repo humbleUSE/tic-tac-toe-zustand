@@ -5,7 +5,7 @@ import Square from "./components/Square";
 function App() {
   return (
     <>
-      <Board onPlay={() => {}} squares={[]} xIsNext={true} />
+      <Board  />
     </>
   );
 }

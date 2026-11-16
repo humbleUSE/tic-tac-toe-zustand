@@ -3,7 +3,7 @@
     "vtsls": {
       "settings": {
         "javascript": {
-          "updateImportsOnFileMove": { "enabled": "always" }
+          "updateImportsOnFileMove": { "enabled": "always" },
         },
         "typescript": {
           "updateImportsOnFileMove": { "enabled": "always" },
@@ -12,10 +12,10 @@
           // "preferences": { "includePackageJsonAutoImports": "auto" },
           "tsserver": {
             "useSyntaxServer": "never",
-            "maxTsServerMemory": 768
-          }
-        }
-      }
-    }
-  }
+            "maxTsServerMemory": 768,
+          },
+        },
+      },
+    },
+  },
 }
