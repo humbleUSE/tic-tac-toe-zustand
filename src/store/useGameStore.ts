@@ -5,18 +5,21 @@ import { combine } from "zustand/middleware";
 export type GameStoreState = GameState & GameAction;
 interface GameState {
   history: History;
-  xIsNext: boolean;
+  currentMove: number;
+  // xIsNext: boolean;
 }
 interface GameAction {
   setHistory: (s: History | ((s: History) => History)) => void;
-  setXIsNext: (b: boolean | ((b: boolean) => boolean)) => void;
+  setCurrentMove: (n: number | ((n: number) => number)) => void;
+  // setXIsNext: (b: boolean | ((b: boolean) => boolean)) => void;
 }
 export const useGameStore = create(
   combine(
     {
       // Initial state
       history: [Array<SquareValue>(9).fill(null)] as History,
-      xIsNext: true,
+      // xIsNext: true,
+      currentMove: 0,
     },
     // Actions
     (set) => ({
@@ -31,15 +34,26 @@ export const useGameStore = create(
               : nextHistory,
         }));
       },
-      // Toggle xIsNext
-      setXIsNext: (nextXIsNext: boolean | ((b: boolean) => boolean)) => {
-        set((state) => ({
-          xIsNext:
-            typeof nextXIsNext === "function"
-              ? nextXIsNext(state.xIsNext)
-              : nextXIsNext,
-        }));
+      // set current move
+      setCurrentMove: (currentMove: number | ((n: number) => number)) => {
+        set((state) => {
+          return {
+            currentMove:
+              typeof currentMove === "function"
+                ? currentMove(state.currentMove)
+                : currentMove,
+          };
+        });
       },
+      // Toggle xIsNext
+      // setXIsNext: (nextXIsNext: boolean | ((b: boolean) => boolean)) => {
+      //   set((state) => ({
+      //     xIsNext:
+      //       typeof nextXIsNext === "function"
+      //         ? nextXIsNext(state.xIsNext)
+      //         : nextXIsNext,
+      //   }));
+      // },
     }),
   ),
 );
@@ -77,17 +91,17 @@ export function calculateStatus(
   player: Player,
 ) {
   if (!winner && isDraw) return "Draw!";
-  if (winner) return `Winner ${winner}`;
+  if (winner) return `Winner! is ${winner}`;
 
   return `Next player: ${player}!`;
 }
 
 export function selectGameStatus(state: GameStoreState) {
   const currentSquares = state.history[state.history.length - 1];
-  const xIsNext = state.xIsNext;
+  // const xIsNext = state.xIsNext;
   const winner = calculateWinner(currentSquares);
   const isDraw = calculateTurns(currentSquares);
-  const player: SquareValue = xIsNext ? "X" : "O";
+  const player: SquareValue = state.currentMove % 2 ? "X" : "O";
 
   const status = calculateStatus(winner, isDraw, player);
   console.log(status);
