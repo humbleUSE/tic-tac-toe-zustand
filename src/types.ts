@@ -14,3 +14,9 @@ export interface Square {
 // export type Squares = Square[];
 export type GameBoard = SquareValue[];
 export type History = GameBoard[];
+
+export interface ScoreState {
+  xWins: number;
+  oWins: number;
+  draws: number;
+}

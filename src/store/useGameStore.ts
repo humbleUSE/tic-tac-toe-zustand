@@ -1,58 +1,109 @@
 import type { Player, GameBoard, SquareValue, History } from "@/types";
 import { create } from "zustand";
-import { combine } from "zustand/middleware";
+import { combine, persist } from "zustand/middleware";
 
 export type GameStoreState = GameState & GameAction;
 interface GameState {
   history: History;
   currentMove: number;
-  // xIsNext: boolean;
+  xWins: number;
+  oWins: number;
+  draws: number;
+  hasRecordedCurrentGame: boolean;
 }
 interface GameAction {
   setHistory: (s: History | ((s: History) => History)) => void;
   setCurrentMove: (n: number | ((n: number) => number)) => void;
   resetGame: () => void;
+  recordWin: (winner: Player) => void;
+  recordDraw: () => void;
+  resetScores: () => void;
 }
 const initialBoard = Array<SquareValue>(9).fill(null) as GameBoard;
+
 export const useGameStore = create(
-  combine(
+  persist(
+    combine(
+      {
+        // Initial state
+        history: [initialBoard] as History,
+        currentMove: 0,
+        xWins: 0,
+        oWins: 0,
+        draws: 0,
+        hasRecordedCurrentGame: false,
+      },
+      // Actions
+      (set) => ({
+        // Update the squares on the board
+        setHistory: (
+          nextHistory: History | ((prevState: History) => History),
+        ) => {
+          set((state) => ({
+            history:
+              typeof nextHistory === "function"
+                ? nextHistory(state.history)
+                : nextHistory,
+          }));
+        },
+        // set current move
+        setCurrentMove: (currentMove: number | ((n: number) => number)) => {
+          set((state) => {
+            return {
+              currentMove:
+                typeof currentMove === "function"
+                  ? currentMove(state.currentMove)
+                  : currentMove,
+            };
+          });
+        },
+        // Reset the game
+        resetGame: () => {
+          set({
+            history: [initialBoard] as History,
+            currentMove: 0,
+            hasRecordedCurrentGame: false,
+          });
+        },
+        // Record X or O win
+        recordWin: (winner: Player) => {
+          set((state) => {
+            if (state.hasRecordedCurrentGame) return state;
+            return {
+              xWins: winner === "X" ? state.xWins + 1 : state.xWins,
+              oWins: winner === "O" ? state.oWins + 1 : state.oWins,
+              hasRecordedCurrentGame: true,
+            };
+          });
+        },
+        // Record draw
+        recordDraw: () => {
+          set((state) => {
+            if (state.hasRecordedCurrentGame) return state;
+            return {
+              draws: state.draws + 1,
+              hasRecordedCurrentGame: true,
+            };
+          });
+        },
+        // Reset scoreboard
+        resetScores: () => {
+          set({
+            xWins: 0,
+            oWins: 0,
+            draws: 0,
+          });
+        },
+      }),
+    ),
     {
-      // Initial state
-      history: [initialBoard] as History,
-      currentMove: 0,
+      name: "tic-tac-toe-scores",
+      partialize: (state) => ({
+        xWins: state.xWins,
+        oWins: state.oWins,
+        draws: state.draws,
+      }),
     },
-    // Actions
-    (set) => ({
-      // Update the squares on the board
-      setHistory: (
-        nextHistory: History | ((prevState: History) => History),
-      ) => {
-        set((state) => ({
-          history:
-            typeof nextHistory === "function"
-              ? nextHistory(state.history)
-              : nextHistory,
-        }));
-      },
-      // set current move
-      setCurrentMove: (currentMove: number | ((n: number) => number)) => {
-        set((state) => {
-          return {
-            currentMove:
-              typeof currentMove === "function"
-                ? currentMove(state.currentMove)
-                : currentMove,
-          };
-        });
-      },
-      // Reset the game
-      resetGame: () => {
-        set({
-          history: [initialBoard] as History,
-          currentMove: 0,
-        });
-      },
-    }),
   ),
 );
 
@@ -85,7 +136,7 @@ export function calculateWinner(squares: GameBoard) {
   return winningSquares ? squares[winningSquares[0]] : null;
 }
 
-function calculateTurns(squares: GameBoard) {
+export function calculateTurns(squares: GameBoard) {
   return squares.every(Boolean);
 }
 
