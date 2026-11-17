@@ -9,6 +9,7 @@ export interface BoardProps {
 export interface Square {
   value: SquareValue;
   onSquareClick: () => void;
+  isWinning?: boolean;
 }
 // export type Squares = Square[];
 export type GameBoard = SquareValue[];
