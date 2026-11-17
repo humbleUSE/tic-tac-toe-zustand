@@ -1,5 +1,6 @@
 import Game from "./components/Game";
 import AboutProject from "./components/AboutProject";
+import ThemeCustomizer from "./components/ThemeCustomizer";
 
 import * as m from "motion/react-client";
 
@@ -19,8 +20,9 @@ export default function App() {
         <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
           Powered by React 19 & Zustand
         </p>
-        <div className="mt-3 flex justify-center">
+        <div className="mt-3 flex items-center justify-center gap-2">
           <AboutProject />
+          <ThemeCustomizer />
         </div>
       </m.header>
 
