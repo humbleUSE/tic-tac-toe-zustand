@@ -1,22 +1,68 @@
 # Tic-Tac-Toe — Zustand State Architecture
 
-A small game used as a practical study in **Zustand state architecture**. The focus is not the rules of Tic-Tac-Toe: it is how to model related state, compose Zustand middleware, persist only durable data, derive UI state, and keep React subscriptions focused—while delivering a polished, accessible interface.
+A React and TypeScript Tic-Tac-Toe implementation designed as a Zustand architecture study, highlighting composed state, middleware patterns, persistent score tracking, derived selectors, optimized subscriptions, and polished UI/UX built around maintainable frontend design.
 
-> **What this project demonstrates:** a typed Zustand store for move history and match scores; `combine` and `persist` middleware; shallow selection of derived state; narrow component selectors; immutable time-travel history; and a separate persisted store for theme preferences.
+> This project is not simply a Tic-Tac-Toe game. It is a practical demonstration of thoughtful React state modeling, Zustand-based application architecture, performance-conscious rendering, and interface design decisions.
 
 ## Why this project exists
 
-A familiar game makes state-management decisions easy to see. This implementation uses it to explore how an application can separate game state and actions from presentation, keep transient play state distinct from durable preferences and scores, and make UI components subscribe only to the data they need.
+A familiar game makes state-management decisions easy to see. This project uses the classic Tic-Tac-Toe domain to showcase:
 
-The app is the demonstration vehicle; the engineering decisions—state shape, middleware, selectors, component boundaries, visual system, and interaction design—are the subject.
+- typed global state with Zustand
+- composed middleware patterns
+- selective persistence for durable vs transient data
+- selector-driven UI optimization
+- immutable game history and time-travel behavior
+- clean separation between domain logic and presentation
+- polished interaction design and responsive UX
 
-## Zustand patterns in the code
+The app is the vehicle. The real subject is the software design.
 
-### 1. Compose a typed state-and-actions store
+---
 
-[`src/store/useGameStore.ts`](src/store/useGameStore.ts) defines game state and actions together with `combine`, then wraps the result in `persist`. The middleware composition gives the store a clear initial-state/action boundary and persistence behavior without adding a separate reducer framework.
+## What this project demonstrates
+
+### Zustand-first architecture
+The game state lives in a single store, but it is not a dumping ground for everything. The repository separates concerns across a few explicit domains:
+
+- game session state
+- scoreboard state
+- persisted preferences
+- view-derived status values
+- UI-only presentation concerns
+
+This creates a more maintainable mental model and reduces unnecessary re-renders.
+
+### Middleware and persistence strategy
+The main game store uses Zustand `combine` and `persist` together:
 
 ```ts
+import type { Player, GameBoard, SquareValue, History } from "@/types";
+import { create } from "zustand";
+import { combine, persist } from "zustand/middleware";
+
+export type GameStoreState = GameState & GameAction;
+
+interface GameState {
+  history: History;
+  currentMove: number;
+  xWins: number;
+  oWins: number;
+  draws: number;
+  hasRecordedCurrentGame: boolean;
+}
+
+interface GameAction {
+  setHistory: (s: History | ((s: History) => History)) => void;
+  setCurrentMove: (n: number | ((n: number) => number)) => void;
+  resetGame: () => void;
+  recordWin: (winner: Player) => void;
+  recordDraw: () => void;
+  resetScores: () => void;
+}
+
+const initialBoard = Array<SquareValue>(9).fill(null) as GameBoard;
+
 export const useGameStore = create(
   persist(
     combine(
@@ -29,14 +75,60 @@ export const useGameStore = create(
         hasRecordedCurrentGame: false,
       },
       (set) => ({
-        // Actions are defined alongside the state they update.
-        resetGame: () =>
+        setHistory: (nextHistory) => {
+          set((state) => ({
+            history:
+              typeof nextHistory === "function"
+                ? nextHistory(state.history)
+                : nextHistory,
+          }));
+        },
+
+        setCurrentMove: (currentMove) => {
+          set((state) => ({
+            currentMove:
+              typeof currentMove === "function"
+                ? currentMove(state.currentMove)
+                : currentMove,
+          }));
+        },
+
+        resetGame: () => {
           set({
             history: [initialBoard] as History,
             currentMove: 0,
             hasRecordedCurrentGame: false,
-          }),
-        // Other actions update history, scores, and match status.
+          });
+        },
+
+        recordWin: (winner: Player) => {
+          set((state) => {
+            if (state.hasRecordedCurrentGame) return state;
+            return {
+              xWins: winner === "X" ? state.xWins + 1 : state.xWins,
+              oWins: winner === "O" ? state.oWins + 1 : state.oWins,
+              hasRecordedCurrentGame: true,
+            };
+          });
+        },
+
+        recordDraw: () => {
+          set((state) => {
+            if (state.hasRecordedCurrentGame) return state;
+            return {
+              draws: state.draws + 1,
+              hasRecordedCurrentGame: true,
+            };
+          });
+        },
+
+        resetScores: () => {
+          set({
+            xWins: 0,
+            oWins: 0,
+            draws: 0,
+          });
+        },
       }),
     ),
     {
@@ -51,30 +143,93 @@ export const useGameStore = create(
 );
 ```
 
-The `partialize` option is an important persistence boundary: scores survive reloads, while the in-progress board, move history, and one-game guard remain session state. `hasRecordedCurrentGame` plus guarded `recordWin`/`recordDraw` actions prevents a finished match from being counted more than once.
+### Why this matters
+The persistence boundary is deliberate:
 
-### 2. Derive view state and use shallow selection
+- scores persist
+- theme preferences persist
+- current board state does not persist in the same way
+- transient session state remains ephemeral
+- game logic remains consistent without polluting the UI layer
 
-The store exports `selectGameStatus`, a pure selector that derives the current player, winner, draw state, status text, and winning squares from history and the current move. Components that consume this object use Zustand's `useShallow` so a newly-created selector result does not trigger a render when its selected fields are shallowly unchanged.
+This is a strong example of domain-aware Zustand usage rather than blindly storing everything in a single global object.
+
+---
+
+## Selectors, derived state, and optimization
+
+A key part of this project is reducing unnecessary render work. Components do not subscribe to the entire store unless they need to. Instead, they select only what they need.
 
 ```tsx
 import { useShallow } from "zustand/react/shallow";
 import { selectGameStatus, useGameStore } from "@/store/useGameStore";
 
-const { status, winner, player, isDraw, winningSquares } = useGameStore(
+const { winner, isDraw, player, status, winningSquares } = useGameStore(
   useShallow(selectGameStatus),
 );
 ```
 
-Other components use narrow selectors for individual values/actions, for example `useGameStore((state) => state.xWins)` in `Scoreboard` and separate `history`, `currentMove`, and action selections in `Moves`. This keeps subscriptions aligned with what each component actually renders rather than reading the whole store everywhere.
+The store also exports pure, derived game rules:
 
-### 3. Keep derived game logic out of rendering components
+```ts
+export function calculateWinningSquares(squares: GameBoard) {
+  for (const line of winningLines) {
+    const [a, b, c] = line;
+    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c])
+      return line;
+  }
 
-`calculateWinningSquares`, `calculateWinner`, `calculateTurns`, `calculateStatus`, and `selectGameStatus` live alongside the game store in `useGameStore.ts`. This makes the rules and derived state independently understandable, while `Board` and `Game` focus on rendering and coordinating interactions.
+  return null;
+}
 
-### 4. Model history as navigable immutable state
+export function calculateWinner(squares: GameBoard) {
+  const winningSquares = calculateWinningSquares(squares);
+  return winningSquares ? squares[winningSquares[0]] : null;
+}
 
-`Game` appends a new board snapshot and truncates any future branch when a move is made after navigating backward. `Moves` selects an earlier index to travel through the game without mutating prior snapshots.
+export function calculateTurns(squares: GameBoard) {
+  return squares.every(Boolean);
+}
+
+export function calculateStatus(
+  winner: Player | null,
+  isDraw: boolean,
+  player: Player,
+) {
+  if (!winner && isDraw) return "Draw!";
+  if (winner) return `Winner! is ${winner}`;
+
+  return `Next player: ${player}!`;
+}
+
+export function selectGameStatus(state: GameStoreState) {
+  const currentSquares = state.history[state.currentMove];
+  const winner = calculateWinner(currentSquares);
+  const winningSquares = calculateWinningSquares(currentSquares);
+  const isDraw = calculateTurns(currentSquares);
+  const player: SquareValue = state.currentMove % 2 === 0 ? "X" : "O";
+
+  const status = calculateStatus(winner, isDraw, player);
+  return { status, winner, player, isDraw, winningSquares };
+}
+```
+
+### Efficient render patterns
+This project uses:
+
+- narrow selectors for individual values
+- `useShallow` for derived selector objects
+- immutable history updates
+- localized action usage
+- avoid-all-at-once subscriptions
+
+This makes the app a good reference for how to build a React app that scales without washing away state clarity.
+
+---
+
+## Game history as a state model
+
+The move list is modeled as a history timeline, not a one-off state array. Each move snapshots a board state and allows navigation backward and forward through game progression.
 
 ```ts
 function handlePlay(nextSquares: GameBoard) {
@@ -84,28 +239,112 @@ function handlePlay(nextSquares: GameBoard) {
 }
 ```
 
-This simple history model makes time travel and replay understandable without introducing a separate history library.
+This is a simple but important software architecture decision:
 
-### 5. Separate unrelated state domains
+- previous moves remain intact
+- future branches are removed when progressing from an earlier move
+- the app can reason about game progression cleanly
+- the UI can represent a timeline of moves with minimal logic
 
-[`src/store/useThemeStore.ts`](src/store/useThemeStore.ts) owns theme mode and accent selection in its own persisted Zustand store. Theme preferences therefore have a distinct lifecycle and persistence key from game scores. `ThemeCustomizer` applies the stored preference to the document root, including light, dark, system, and accent variants.
+This is fundamentally better than mutating a single board state and losing historical context.
 
-## UI/UX and architecture
+---
 
-- **Focused components:** `Game`, `Board`, `Square`, `Moves`, `Scoreboard`, and `ThemeCustomizer` each have a clear presentation or interaction role; shared domain types live in `src/types.ts`.
-- **Intentional interaction feedback:** Motion entrance and staggered board-square animations, move highlighting, win-state emphasis, and a confetti celebration provide feedback without changing the state model.
-- **Responsive visual system:** Tailwind CSS v4, theme tokens, dark/light modes, five accent choices, and responsive board/history layout support customization and smaller viewports.
-- **Accessible interactions:** semantic buttons, descriptive labels, a polite live status region, and keyboard-friendly UI primitives from Base UI make key game interactions understandable beyond visual styling.
-- **Reusable UI foundations:** locally composed UI primitives in `src/components/ui` provide consistent button, dialog, and dropdown behavior.
-- **Developer experience:** TypeScript, Vite, a `@/` source alias, the React Compiler preset, and the Code Inspector Vite plugin support type-safe development and DOM-to-source inspection.
+## Representing theme preferences separately
+
+The app also includes a second store: `useThemeStore.ts`. It is dedicated to theme preferences and persists independently from the game score state.
+
+```ts
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+
+export type ThemeMode = "light" | "dark" | "system";
+export type ThemeAccent = "default" | "violet" | "emerald" | "amber" | "rose";
+
+interface ThemeState {
+  mode: ThemeMode;
+  accent: ThemeAccent;
+  setMode: (mode: ThemeMode) => void;
+  setAccent: (accent: ThemeAccent) => void;
+}
+
+export const useThemeStore = create<ThemeState>()(
+  persist(
+    (set) => ({
+      mode: "dark",
+      accent: "default",
+      setMode: (mode) => set({ mode }),
+      setAccent: (accent) => set({ accent }),
+    }),
+    {
+      name: "tic-tac-toe-theme",
+    },
+  ),
+);
+```
+
+This separation is useful because app appearance is not part of the game domain. It also demonstrates how a multi-store architecture can be clearer than a single monolithic global state.
+
+---
+
+## UI/UX design decisions
+
+This repository is designed with a strong UI/UX angle, not just functional gameplay. The user experience is intentionally thoughtful.
+
+### Interaction and feedback
+- board tile hover states
+- visual win highlighting
+- confetti celebration on victory
+- animated status banner
+- subtle motion on entry for panels and tiles
+- history state highlighting for current move
+
+### Visual design
+- dark/light mode support
+- accent color selection
+- responsive layout
+- glassmorphism-inspired surfaces
+- visually consistent card, panel, and button system
+- accessibility-friendly contrast and structure
+
+### Software design and polish
+- components are focused and readable
+- shared UI primitives are centralized
+- action/state boundaries remain clear
+- type safety reduces UI logic errors
+- architecture remains small but educational
+
+---
+
+## Notable features
+
+- Zustand `combine` + `persist` usage
+- derived selector pattern with `useShallow`
+- local game history state with immutable updates
+- board win detection and replayable state transitions
+- scoreboard persistence
+- theme preference persistence
+- responsive interface
+- interactive motion feedback
+- accessible status labeling
+- reusable UI primitives
+- maintainable multi-store state separation
+
+---
 
 ## Tech stack
 
-- **React 19 + TypeScript** — component model and type-safe state/actions.
-- **Zustand 5** — lightweight global state, `combine`, `persist`, selectors, and `useShallow`.
-- **Vite** — development server and production build.
-- **Tailwind CSS 4 + Base UI** — styling and accessible interaction primitives.
-- **Motion, Lucide, and canvas-confetti** — animation, icons, and win feedback.
+- React 19
+- TypeScript
+- Zustand 5
+- Vite
+- Tailwind CSS 4
+- Base UI
+- Motion
+- Lucide React
+- canvas-confetti
+
+---
 
 ## Run locally
 
@@ -116,33 +355,55 @@ bun install
 bun run dev
 ```
 
-Available project scripts:
+### Available scripts
 
 ```bash
-bun run build    # TypeScript project build and Vite production build
-bun run preview  # Preview the production build locally
-bun run lint     # Run ESLint
+bun run build
+bun run preview
+bun run lint
 ```
+
+---
 
 ## Project structure
 
 ```text
 src/
-├── components/       # Game UI, interaction components, and reusable UI primitives
-├── lib/              # Small shared utilities
-├── store/            # Game and theme Zustand stores, actions, selectors, and game logic
-├── types.ts          # Shared game-domain types
-├── App.tsx           # App composition and top-level layout
-└── main.tsx          # React entry point
+├── components/
+│   ├── ui/                 # reusable button, dialog, dropdown primitives
+│   ├── AboutProject.tsx    # project overview dialog
+│   ├── Board.tsx           # board UI and win celebration
+│   ├── Game.tsx            # orchestrates the game flow and score logic
+│   ├── Moves.tsx           # move history panel
+│   ├── Scoreboard.tsx      # score summary
+│   ├── Square.tsx          # interactive square component
+│   └── ThemeCustomizer.tsx # theme controls
+├── lib/
+│   └── utils.ts            # shared utility exports
+├── store/
+│   ├── useGameStore.ts     # game logic, selectors, state shape, persistence
+│   └── useThemeStore.ts    # theme preferences and persistence
+├── App.tsx                 # app shell and layout
+├── index.css               # theme tokens and visual system
+├── main.tsx               # entry point
+├── types.ts                # game domain types
+└── App.css                # legacy starter file (leftover from template scaffolding)
 ```
-
-## A useful code-reading path
-
-1. Start with `src/store/useGameStore.ts` for state shape, actions, middleware, persistence, and derived game selectors.
-2. Read `src/store/useThemeStore.ts` to compare a separate, fully persisted preference domain.
-3. Follow `src/components/Game.tsx` for orchestration, state selection, score recording, and move-history branching.
-4. See `src/components/Board.tsx`, `Moves.tsx`, and `Scoreboard.tsx` for UI-specific subscriptions and interactions.
 
 ---
 
-This project is an exploration of practical Zustand and frontend design decisions—not a claim that Tic-Tac-Toe itself is a complex application. The intentionally small domain makes the state architecture and user experience easier to inspect.
+## A useful code-reading path
+
+1. Read `src/store/useGameStore.ts` first.
+2. Then read `src/store/useThemeStore.ts`.
+3. Follow `src/components/Game.tsx` for orchestration.
+4. Review `src/components/Board.tsx`, `Moves.tsx`, and `Scoreboard.tsx` for UI behavior.
+5. Finish with `src/components/ThemeCustomizer.tsx` for theme state integration.
+
+---
+
+## Final note
+
+This project is an exploration of practical Zustand and frontend design decisions—not an attempt to prove that Tic-Tac-Toe is a complex application. The domain is intentionally small so the architecture, optimization strategies, and UI/UX craftsmanship remain easy to inspect, teach, and learn from.
+
+If you are studying state management patterns, this app is a useful example of how a small app can still reflect high-quality engineering decisions.
